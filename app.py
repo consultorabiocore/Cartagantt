@@ -6,16 +6,19 @@ from datetime import datetime, timedelta
 # Configuración de página
 st.set_page_config(page_title="Sistema de Gestión de Seguridad - Gantt Pro", layout="wide")
 
-# Estilo CSS para limpieza visual
+# Estilo CSS para limpieza visual - CORREGIDO
 st.markdown("""
     <style>
     .main { background-color: #fcfcfc; }
-    .stMetric { background-color: #ffffff; padding: 15px; border-radius: 8px; border: 1px solid #dee2e6; }
+    .stMetric { 
+        background-color: #ffffff; 
+        padding: 15px; 
+        border-radius: 8px; 
+        border: 1px solid #dee2e6; 
+    }
     </style>
-    """, unsafe_allow_stdio=True)
+    """, unsafe_allow_html=True) # <-- Aquí estaba el error, se cambió 'stdio' por 'html'
 
-st.title("🛡️ Control de Gestión de Prevención de Riesgos")
-st.markdown("---")
 
 ## --- BARRA LATERAL: CONFIGURACIÓN Y PERSONALIZACIÓN ---
 with st.sidebar:
