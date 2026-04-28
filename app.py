@@ -4,92 +4,93 @@ import plotly.express as px
 from datetime import datetime, timedelta
 import io
 
-# 1. Configuración de la App
-st.set_page_config(page_title="Gantt Pro Chile", layout="wide")
+# 1. Configuración de Interfaz
+st.set_page_config(page_title="Gantt Pro Prevención", layout="wide")
 
 st.markdown("""
     <style>
-    .main { background-color: #f0f2f6; }
-    .stButton>button { background-color: #1e5631; color: white; border-radius: 8px; height: 3em; width: 100%;}
+    .main { background-color: #f8f9fa; }
+    .stButton>button { background-color: #1e5631; color: white; border-radius: 10px; height: 3.5em; }
     </style>
     """, unsafe_allow_html=True)
 
-st.title("🛡️ Generador de Plan de Trabajo Preventivo")
+st.title("📑 Plan de Trabajo Preventivo (Art. 8, DS 40)")
 
-# 2. Información del Proyecto
-with st.expander("📝 Datos del Proyecto / Empresa", expanded=True):
-    col1, col2 = st.columns(2)
-    empresa = col1.text_input("Empresa", "Nombre de la Empresa S.A.")
-    proyecto = col2.text_input("Proyecto / Obra", "Instalación de Faenas")
+# 2. Datos de Cabecera
+col_a, col_b = st.columns(2)
+with col_a:
+    empresa = st.text_input("Empresa Cliente", "Empresa de Servicios S.A.")
+    rut = st.text_input("RUT Empresa", "76.000.000-K")
+with col_b:
+    proyecto = st.text_input("Obra / Proyecto", "Mantenimiento Planta Central")
+    emisor = st.text_input("Elaborado por", "Experto en Prevención de Riesgos")
 
-# 3. Datos de entrada
-if 'data_v5' not in st.session_state:
+# 3. Estructura de Datos
+if 'df_final' not in st.session_state:
     data = {
-        "ACTIVIDAD / HITO": ["GESTIÓN PREVENTIVA", "Inducción hombre nuevo", "IDENTIFICACIÓN DE PELIGROS", "Matriz IPER"],
-        "RESPONSABLE": ["Prevencionista" for _ in range(4)],
-        "FRECUENCIA": ["Mensual" for _ in range(4)],
-        "INICIO": [datetime.now().date()] * 4,
-        "FIN": [(datetime.now() + timedelta(days=15)).date()] * 4,
-        "CUMPLIMIENTO %": [0] * 4
+        "ACTIVIDAD / HITO": ["POLÍTICA SST", "Elaborar documento", "GESTIÓN RIESGOS", "Matriz IPER", "Instalar señalética"],
+        "RESPONSABLE": ["Prevencionista" for _ in range(5)],
+        "FRECUENCIA": ["Anual", "Mensual", "Anual", "Mensual", "Mensual"],
+        "INICIO": [datetime.now().date()] * 5,
+        "FIN": [(datetime.now() + timedelta(days=15)).date()] * 5,
+        "CUMPLIMIENTO %": [0] * 5
     }
-    st.session_state.data_v5 = pd.DataFrame(data)
+    st.session_state.df_final = pd.DataFrame(data)
 
 # 4. Editor de Datos
-df_editado = st.data_editor(st.session_state.data_v5, num_rows="dynamic", use_container_width=True)
+df_editado = st.data_editor(st.session_state.df_final, num_rows="dynamic", use_container_width=True)
 
-# 5. Gráfico de Gantt Profesional
-df_plot = df_editado[df_editado["ACTIVIDAD / HITO"].str.strip() != ""].copy()
-if not df_plot.empty:
-    df_plot["Tipo"] = df_plot["ACTIVIDAD / HITO"].apply(lambda x: "HITO" if str(x).isupper() else "TAREA")
-    fig = px.timeline(
-        df_plot, x_start="INICIO", x_end="FIN", y="ACTIVIDAD / HITO",
-        color="Tipo", color_discrete_map={"HITO": "#004d40", "TAREA": "#4db6ac"},
-        template="plotly_white", title="Cronograma Operativo SSO"
-    )
-    fig.update_yaxes(autorange="reversed")
-    st.plotly_chart(fig, use_container_width=True)
-
-# 6. EXPORTACIÓN EXCEL CORREGIDA
+# 5. Exportación Estética (XLSXWRITER)
 st.markdown("---")
 buffer = io.BytesIO()
 
-# El nombre de la hoja DEBE ser idéntico en ambos lados
-sheet_name = 'Plan_Trabajo'
-
 with pd.ExcelWriter(buffer, engine='xlsxwriter') as writer:
-    df_editado.to_excel(writer, index=False, sheet_name=sheet_name, startrow=4)
+    # Escribimos los datos empezando en la fila 7 para dejar espacio al encabezado
+    df_editado.to_excel(writer, index=False, sheet_name='Plan_Trabajo', startrow=7)
     
     workbook  = writer.book
-    worksheet = writer.sheets[sheet_name] # <--- CORREGIDO: Ahora coinciden
+    worksheet = writer.sheets['Plan_Trabajo']
 
-    # Formatos de Excel
-    fmt_header = workbook.add_format({'bold': True, 'bg_color': '#1e5631', 'font_color': 'white', 'border': 1, 'align': 'center'})
-    fmt_titulo = workbook.add_format({'bold': True, 'font_size': 14, 'font_color': '#1e5631'})
-    fmt_hito   = workbook.add_format({'bold': True, 'bg_color': '#e0f2f1', 'border': 1})
-    fmt_normal = workbook.add_format({'border': 1})
+    # --- DEFINICIÓN DE FORMATOS ---
+    f_titulo = workbook.add_format({'bold': True, 'font_size': 16, 'font_color': '#1e5631', 'align': 'center'})
+    f_sub = workbook.add_format({'bold': True, 'bg_color': '#f2f2f2', 'border': 1})
+    f_val = workbook.add_format({'border': 1})
+    f_header = workbook.add_format({'bold': True, 'bg_color': '#1e5631', 'font_color': 'white', 'border': 1, 'align': 'center'})
+    f_principal = workbook.add_format({'bold': True, 'bg_color': '#c8e6c9', 'border': 1}) # Verde ChilePrevención
+    f_normal = workbook.add_format({'border': 1})
 
-    # Encabezados estéticos
-    worksheet.write('A1', 'PLAN DE TRABAJO PREVENTIVO - CHILE', fmt_titulo)
-    worksheet.write('A2', f'EMPRESA: {empresa}')
-    worksheet.write('A3', f'PROYECTO: {proyecto}')
+    # --- DISEÑO DEL ENCABEZADO (Igual a ChilePrevención) ---
+    worksheet.merge_range('A1:F2', 'CARTA GANTT: PLAN DE TRABAJO PREVENTIVO PERSONALIZADO', f_titulo)
+    
+    worksheet.write('A4', 'EMPRESA:', f_sub)
+    worksheet.write('B4', empresa, f_val)
+    worksheet.write('A5', 'RUT:', f_sub)
+    worksheet.write('B5', rut, f_val)
+    
+    worksheet.write('C4', 'PROYECTO:', f_sub)
+    worksheet.write('D4', proyecto, f_val)
+    worksheet.write('C5', 'ELABORÓ:', f_sub)
+    worksheet.write('D5', emisor, f_val)
 
-    # Aplicar formato a la tabla
+    # --- FORMATO DE TABLA ---
     for col_num, value in enumerate(df_editado.columns.values):
-        worksheet.write(4, col_num, value, fmt_header)
+        worksheet.write(7, col_num, value, f_header)
         worksheet.set_column(col_num, col_num, 22)
 
     for row_num in range(len(df_editado)):
         task = str(df_editado.iloc[row_num, 0])
-        estilo = fmt_hito if task.isupper() else fmt_normal
+        # Si es mayúscula es Actividad Principal
+        style = f_principal if (task.isupper() and task.strip() != "") else f_normal
+        
         for col_num in range(len(df_editado.columns)):
             val = df_editado.iloc[row_num, col_num]
             if isinstance(val, (datetime, pd.Timestamp)):
                 val = val.strftime('%d-%m-%Y')
-            worksheet.write(row_num + 5, col_num, val, estilo)
+            worksheet.write(row_num + 8, col_num, val, style)
 
 st.download_button(
-    label="📥 DESCARGAR EXCEL PROFESIONAL",
+    label="📥 DESCARGAR PLAN DE TRABAJO (FORMATO OFICIAL)",
     data=buffer.getvalue(),
-    file_name=f"Plan_Trabajo_{empresa}.xlsx",
+    file_name=f"Plan_SSO_{empresa.replace(' ', '_')}.xlsx",
     mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
 )
