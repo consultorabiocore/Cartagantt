@@ -4,114 +4,108 @@ import plotly.express as px
 from datetime import datetime, timedelta
 import io
 
-# 1. Configuración de Marca y Estilo
-st.set_page_config(page_title="Plan de Trabajo Preventivo", layout="wide")
+# 1. Configuración Profesional
+st.set_page_config(page_title="Plan Preventivo Pro", layout="wide")
 
 st.markdown("""
     <style>
-    .main { background-color: #f9fbf9; }
-    .stHeader { color: #1e5631; }
-    div[data-testid="stMetricValue"] { color: #1e5631; font-weight: bold; }
-    .stButton>button { background-color: #1e5631; color: white; border-radius: 5px; }
+    .main { background-color: #f4f7f6; }
+    .stMetric { background-color: #ffffff; border-left: 5px solid #1e5631; }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Encabezado tipo Informe
-col_logo, col_titulo = st.columns([1, 4])
-with col_titulo:
-    st.title("📋 Carta Gantt: Plan de Trabajo Preventivo")
-    st.write("**Normativa:** Art. 8, DS 40/44 - Gestión de Seguridad y Salud en el Trabajo")
+st.title("📋 Plan de Trabajo Preventivo (DS 40)")
+st.caption("Para crear una **Actividad Principal**, escríbela en MAYÚSCULAS o inicia con un asterisco (*).")
 
-# 3. Panel Lateral
+# 2. Barra Lateral
 with st.sidebar:
-    st.header("⚙️ Configuración")
-    num_filas = st.number_input("Cantidad de actividades:", min_value=1, value=8)
+    st.header("⚙️ Opciones")
+    num_filas = st.number_input("Filas de la matriz:", min_value=1, value=12)
     st.markdown("---")
-    st.success("Esta herramienta genera el cronograma y la matriz de cumplimiento lista para descargar.")
+    st.info("El gráfico agrupa por colores: las tareas principales resaltan sobre las secundarias.")
 
-# 4. Estructura de Datos (Basada en tus imágenes)
-if 'df_seguridad' not in st.session_state or len(st.session_state.df_seguridad) != num_filas:
-    actividades_pro = [
-        "Elaboración de Política SST", "Identificación de Riesgos", 
-        "Capacitación de uso de EPP", "Simulacro de Emergencia",
-        "Inspección de Herramientas", "Reunión Comité Paritario"
-    ]
+# 3. Datos con Estructura de Ejemplo (Jerárquica)
+if 'df_gantt_v3' not in st.session_state or len(st.session_state.df_gantt_v3) != num_filas:
     data = {
-        "Actividad": [(actividades_pro[i] if i < len(actividades_pro) else "") for i in range(num_filas)],
-        "Responsable": ["Representante Legal / Prevencionista" for _ in range(num_filas)],
+        "Actividad / Hito": [
+            "* GESTIÓN ADMINISTRATIVA", "Elaborar política SST", "Difundir política",
+            "* IDENTIFICACIÓN DE RIESGOS", "Matriz IPER", "Actualizar matriz",
+            "* MEDIDAS DE CONTROL", "Entrega de EPP", "Capacitaciones"
+        ] + [""] * (max(0, num_filas - 9)),
+        "Responsable": ["Prevencionista" for _ in range(num_filas)],
         "Frecuencia": ["Mensual" for _ in range(num_filas)],
-        "Medio de Verificación": ["Registro de Asistencia" for _ in range(num_filas)],
+        "Medio de Verificación": ["Registro" for _ in range(num_filas)],
         "Inicio": [datetime.now().date()] * num_filas,
-        "Fin": [(datetime.now() + timedelta(days=30)).date()] * num_filas,
-        "Cumplimiento %": [0 for _ in range(num_filas)]
+        "Fin": [(datetime.now() + timedelta(days=15)).date()] * num_filas,
+        "Avance %": [0 for _ in range(num_filas)]
     }
-    st.session_state.df_seguridad = pd.DataFrame(data)
+    st.session_state.df_gantt_v3 = pd.DataFrame(data)
 
-# 5. Matriz de Trabajo Editable
-st.subheader("📝 Matriz de Planificación")
+# 4. Editor de Datos
 df_editado = st.data_editor(
-    st.session_state.df_seguridad,
+    st.session_state.df_gantt_v3,
     column_config={
-        "Actividad": st.column_config.TextColumn("Actividad / Hito", width="large"),
-        "Frecuencia": st.column_config.SelectboxColumn("Frecuencia", options=["Única", "Mensual", "Semestral", "Anual"]),
-        "Medio de Verificación": st.column_config.TextColumn("Evidencia (Doc/Registro)"),
-        "Cumplimiento %": st.column_config.ProgressColumn("Avance", min_value=0, max_value=100, format="%d%%"),
-        "Inicio": st.column_config.DateColumn("Fecha Programada"),
-        "Fin": st.column_config.DateColumn("Fecha Revisión"),
+        "Actividad / Hito": st.column_config.TextColumn(width="large"),
+        "Avance %": st.column_config.ProgressColumn(min_value=0, max_value=100, format="%d%%"),
+        "Inicio": st.column_config.DateColumn(),
+        "Fin": st.column_config.DateColumn(),
     },
     num_rows="dynamic",
     use_container_width=True
 )
 
-# 6. Gráfico de Gantt Estilo "Chile Prevención"
-df_plot = df_editado[df_editado["Actividad"].str.strip() != ""].copy()
+# 5. Lógica de Colores para Jerarquía
+def definir_tipo(row):
+    nombre = str(row["Actividad / Hito"])
+    if nombre.startswith("*") or nombre.isupper():
+        return "Principal"
+    return "Secundaria"
 
-if not df_plot.empty:
-    st.markdown("---")
-    st.subheader("📊 Cronograma de Actividades Planificadas")
+if not df_editado.empty:
+    df_plot = df_editado[df_editado["Actividad / Hito"].str.strip() != ""].copy()
     
-    fig = px.timeline(
-        df_plot,
-        x_start="Inicio",
-        x_end="Fin",
-        y="Actividad",
-        color="Cumplimiento %",
-        hover_data=["Responsable", "Medio de Verificación", "Frecuencia"],
-        color_continuous_scale=["#e8f5e9", "#2e7d32"], # Escala de verdes
-        range_color=[0, 100],
-        template="plotly_white"
-    )
+    if not df_plot.empty:
+        # Aplicamos la lógica de tipo
+        df_plot["Tipo"] = df_plot.apply(definir_tipo, axis=1)
 
-    fig.update_yaxes(autorange="reversed", title="")
-    fig.update_xaxes(
-        title="Meses de Ejecución",
-        rangeselector=dict(
-            buttons=list([
-                dict(count=1, label="Mes", step="month", stepmode="backward"),
-                dict(count=6, label="Semestre", step="month", stepmode="backward"),
-                dict(step="all", label="Año Completo")
-            ])
-        ),
-        rangeslider=dict(visible=True, thickness=0.03)
-    )
+        # Gráfico con distinción de colores
+        fig = px.timeline(
+            df_plot,
+            x_start="Inicio",
+            x_end="Fin",
+            y="Actividad / Hito",
+            color="Tipo", 
+            # Definimos colores manuales: Verde oscuro para principales, Verde claro para secundarias
+            color_discrete_map={"Principal": "#1e5631", "Secundaria": "#81c784"},
+            hover_data=["Responsable", "Avance %", "Medio de Verificación"],
+            template="plotly_white"
+        )
 
-    st.plotly_chart(fig, use_container_width=True)
+        fig.update_yaxes(autorange="reversed", title="")
+        
+        # Selectores de Tiempo (Mes/Semestre)
+        fig.update_xaxes(
+            rangeselector=dict(
+                buttons=list([
+                    dict(count=1, label="1 Mes", step="month", stepmode="backward"),
+                    dict(count=6, label="1 Semestre", step="month", stepmode="backward"),
+                    dict(step="all", label="Ver Todo")
+                ])
+            ),
+            rangeslider=dict(visible=True, thickness=0.03)
+        )
 
-# 7. Descarga de Reporte a Excel
+        st.plotly_chart(fig, use_container_width=True)
+
+# 6. Exportar a Excel
 st.markdown("---")
-col_descarga1, col_descarga2 = st.columns(2)
+buffer = io.BytesIO()
+with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+    df_editado.to_excel(writer, index=False, sheet_name='Plan de Trabajo')
 
-with col_descarga1:
-    buffer = io.BytesIO()
-    with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-        df_editado.to_excel(writer, index=False, sheet_name='Plan de Trabajo')
-    
-    st.download_button(
-        label="📥 Descargar Plan de Trabajo en Excel",
-        data=buffer.getvalue(),
-        file_name=f"Plan_Trabajo_Preventivo_{datetime.now().year}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
-
-with col_descarga2:
-    st.info("💡 **Tip:** Para obtener el PDF, presiona **Ctrl + P**, elige 'Guardar como PDF' y activa 'Gráficos de fondo' en la configuración.")
+st.download_button(
+    label="📥 Descargar Plan de Trabajo (.xlsx)",
+    data=buffer.getvalue(),
+    file_name=f"Plan_Trabajo_SSO_{datetime.now().strftime('%Y')}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+)
